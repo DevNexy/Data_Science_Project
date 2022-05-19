@@ -199,3 +199,60 @@ i.	만약, 설명변수의 p-value가 0.05를 초과할 경우 step, update을 �
 5. Test set을 사용해서 모델을 예측한다. 예측 결과와 원본 데이터와 비교하여 모델의 적합성에 대하여 기술한다.
 6.	시각화 및 분석 설명(40점), 모델적합에 대한 설명(40점), 예측(20점) – 각 과정은 이론, 실습 영상을 참고할 것.
 ---
+<풀이>   
+Colon 데이터셋을 다운 받아 데이터 전처리 과정을 거쳤습니다.   
+```R
+data("colon", package = "survival")
+colon <- as_tibble(colon)
+
+#데이터 전처리
+clean_colon <- na.omit(colon)
+clean_colon <- clean_colon %>% filter(etype == 1) %>% select(-rx)
+
+View(clean_colon)
+```
+Clean_colon 데이터를 caret 패키지의 createDataPartition을 사용하여 train/ test데이터 셋을 9:1 비율로 분할해 주었습니다.   
+```R
+#train / test (비율 9:1)
+library(caret)
+set.seed(31)
+index <- createDataPartition(y = clean_colon$status, p = 0.9, list = FALSE)
+
+train <- clean_colon[index, ]
+test <- clean_colon[-index, ]
+```
+분할이 잘 된 것을 볼 수 있습니다.   
+![image](https://user-images.githubusercontent.com/92451281/169394967-fed4b604-ff77-4878-a518-2e7b369d33e4.png)   
+m모델을 생성하기 위해 glm함수를 통해 train 데이터셋을 사용하였고, 반응변수는 status로 설정하였습니다.   
+```R
+m <- glm(status ~., data = train, family = "binomial")
+summary(m)
+```
+![image](https://user-images.githubusercontent.com/92451281/169395075-eab45b40-81c4-4b1b-bef2-7489f72e0b28.png)   
+<m 모델 해석>   
+Coefficients: 에는 y절편 값(Intercept) 및 변수들의 p-value 값이 나와있습니다.    
+time설명변수와 id셜명변수가 0.05보다 작기에 R을 설명하는데 유의하다가 판단할 수 있습니다.    
+다른 설명변수들은 0.05보다 크기에 R을 설명하는데 유의하지 않다고 판단할 수 있습니다.   
+   
+다음과 같이 step함수를 사용하여 유의하지 않은 설명변수를 제외하여 새롭게 모델을 정의하였습니다. 
+```R
+m_2 = step(m, direction = "backward")
+summary(m_2)
+```
+새롭게 정의한 모델의 결과를 summary결과를 확인해보면, 다음과 같은 결과가 나타납니다.   
+![image](https://user-images.githubusercontent.com/92451281/169395228-36ae8c35-af8b-4ea0-8d28-f7621b3515a6.png)   
+train데이터셋을 사용한 원본데이터를 시각화해보면   
+![image](https://user-images.githubusercontent.com/92451281/169395319-e4796b26-6900-41a5-a176-90ff1add8a7c.png)   
+id-status 결과값에선 id설명변수에 따라 status의 변화에 큰 영향을 끼치지 않는 것을 볼 수 있고,   
+time-status 결과값에선 time설명변수에 따라 status의 변화에 영향을 끼치는 것을 확인 할 수 있습니다.   
+
+test데이터셋을 통하여 예측을 해보면,    
+```R
+#예측 데이터
+m_pre <- predict(m_2, newdata = test %>% select(-status), type = "response") %>%
+  tibble(predict_status = .) %>% bind_cols(test, .)
+str(m_pre)
+View(m_pre)
+```
+총 88개의 predict_status(예측값)을 확인 할 수 있게됩니다.   
+![image](https://user-images.githubusercontent.com/92451281/169395527-50857fa2-a865-4f2f-ba2e-4278421c7f67.png)
